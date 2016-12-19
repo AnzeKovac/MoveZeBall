@@ -31,6 +31,8 @@
             GRID_HELPER_STEP = 2,
             MASS = 5;
 
+    var canJump;
+
     initThree();
     initCannon();
     animate();
@@ -63,6 +65,7 @@
         groundBody.addShape(groundShape);
         groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
         groundBody.position.set(0, 0, 0);
+        groundBody.id = "GROUND";
         world.addBody(groundBody);
 
         icosahedronBody.addShape(sphereShape);
@@ -70,10 +73,18 @@
         icosahedronBody.linearDamping = 0.5;
         world.addBody(icosahedronBody);
 
+        icosahedronBody.addEventListener("collide", function (e) {
+            // contact.bi and contact.bj are the colliding bodies, and contact.ni is the collision normal.
+            // We do not yet know which one is which! Let's check.
+            var contact = e.contact;
+            if(contact.bj.id == "GROUND"){
+                canJump = true;
+            }
+        });
+
         var ballContact = new CANNON.ContactMaterial(groundBody, icosahedronBody, 0.0, 0.0);
 
         world.addContactMaterial(ballContact);
-
     }
 
     function initThree() {
@@ -101,7 +112,7 @@
 
 
         // MATERIALS
-        var moonTexture = THREE.ImageUtils.loadTexture( 'textures/UV_Grid_Sm.jpg' );
+        var moonTexture = THREE.ImageUtils.loadTexture( 'textures/marble.png' );
         var moonMaterial = new THREE.MeshBasicMaterial( { map: moonTexture } );
         var icoGeometry = new THREE.SphereGeometry(10, 32, 32),
 
@@ -131,39 +142,38 @@
     function animate() {
         requestAnimationFrame(animate);
 
-        var moveDistance = 10;
-        var maxSpeed = 60;
-
-        if(Key.isDown(Key.W) ){
-          if(Math.abs(icosahedronBody.velocity.z) > maxSpeed ) icosahedronBody.velocity.z +=moveDistance;
-            icosahedronBody.velocity.z +=-moveDistance;
-        }
-        if(Key.isDown(Key.S) ){
-          if(Math.abs(icosahedronBody.velocity.z) > maxSpeed ) icosahedronBody.velocity.z +=-moveDistance;
-            icosahedronBody.velocity.z +=moveDistance;
-        }
-        if(Key.isDown(Key.A) ){
-          if(Math.abs(icosahedronBody.velocity.x) > maxSpeed ) icosahedronBody.velocity.x +=moveDistance;
-            icosahedronBody.velocity.x +=-moveDistance;
-        }
-        if(Key.isDown(Key.D) ){
-          if(Math.abs(icosahedronBody.velocity.x) > maxSpeed ) icosahedronBody.velocity.x +=-moveDistance;
-            icosahedronBody.velocity.x +=moveDistance;
-        }
-        if(Key.isDown(Key.SPACE)){
-            icosahedronBody.velocity.y = 40 ;
-        }
-
-//        if ( keyboard.pressed("W") )
-//
-//        if ( keyboard.pressed("S") )
-//            icosahedronBody.translateZ(  moveDistance );
-//        if ( keyboard.pressed("Q") )
-//            icosahedronBody.translateX( -moveDistance );
+        handleKeyInput();
 
         updatePhysics();
         render();
     }
+
+    function handleKeyInput() {
+        var moveDistance = canJump ? 10 : 5;
+        var maxSpeed = canJump ? 60 : 30;
+
+        if(Key.isDown(Key.W) ){
+            if(Math.abs(icosahedronBody.velocity.z) > maxSpeed ) icosahedronBody.velocity.z +=moveDistance;
+            icosahedronBody.velocity.z +=-moveDistance;
+        }
+        if(Key.isDown(Key.S) ){
+            if(Math.abs(icosahedronBody.velocity.z) > maxSpeed ) icosahedronBody.velocity.z +=-moveDistance;
+            icosahedronBody.velocity.z +=moveDistance;
+        }
+        if(Key.isDown(Key.A) ){
+            if(Math.abs(icosahedronBody.velocity.x) > maxSpeed ) icosahedronBody.velocity.x +=moveDistance;
+            icosahedronBody.velocity.x +=-moveDistance;
+        }
+        if(Key.isDown(Key.D) ){
+            if(Math.abs(icosahedronBody.velocity.x) > maxSpeed ) icosahedronBody.velocity.x +=-moveDistance;
+            icosahedronBody.velocity.x +=moveDistance;
+        }
+        if(Key.isDown(Key.SPACE) && canJump === true){
+            icosahedronBody.velocity.y = 100 ;
+            canJump = false;
+        }
+    }
+
     function updatePhysics() {
         // Step the physics world
         world.step(timeStep);
