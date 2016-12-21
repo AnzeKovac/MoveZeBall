@@ -24,7 +24,14 @@
 
 <script>
     // CONSTANTS
-    var PLAYER_MASS = 50, ID_GROUND = "GROUND";
+    var
+            GRAVITY = -150,
+            PLAYER_MASS = 50,
+            ID_GROUND = "GROUND",
+            ID_BOX = "BOX",
+            ID_LEVEL_GROUND = "LEVEL_GROUND",
+            SWINGING_OBSTACLE_VELOCITY = 250,
+            SWINGING_OBSTACLE_MASS = 1000;
 
     // main
     var world, timeStep = 1 / 60, scene, renderer, camera;
@@ -37,6 +44,7 @@
 
     // Other objects
     var obstacle1Bodies = [], obstacle1Meshes = [];
+    var swingingObstacleBodies = [], swingingObstacleMeshes = [];
 
     // logic
     var canJump;
@@ -55,7 +63,7 @@
         world.broadphase = new CANNON.NaiveBroadphase();
         world.solver.iterations = 10;
         world.solver.tolerance = 0.1;
-        world.gravity.set(0, -100, 0);
+        world.gravity.set(0, GRAVITY, 0);
         world.defaultContactMaterial.contactEquationStiffness = 1e9;
         world.defaultContactMaterial.contactEquationRegularizationTime = 4;
 
@@ -74,8 +82,13 @@
             // contact.bi and contact.bj are the colliding bodies, and contact.ni is the collision normal.
             // We do not yet know which one is which! Let's check.
             var contact = e.contact;
-            if (contact.bj.id == ID_GROUND) {
-                canJump = true;
+            switch (contact.bj.id) {
+                case ID_GROUND:
+                    showGameOverMessage();
+                    break;
+                case ID_LEVEL_GROUND:
+                    canJump = true;
+                    break;
             }
         });
         ///////////////
@@ -142,6 +155,13 @@
 
         var boxTexture = THREE.ImageUtils.loadTexture('textures/crate.png');
         var boxMaterial = new THREE.MeshBasicMaterial({map: boxTexture});
+
+        var stoneTexture = THREE.ImageUtils.loadTexture('textures/stone.jpg');
+//        stoneTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+        stoneTexture.repeat.set(20, 20);
+        stoneTexture.wrapS = THREE.RepeatWrapping;
+        stoneTexture.wrapT = THREE.RepeatWrapping;
+        var stoneMaterial = new THREE.MeshBasicMaterial({map: stoneTexture});
         //////////////////////////
 
         /////////////// OBJECTS - MAIN PART /////////////////
@@ -151,39 +171,99 @@
         var playerGeometry = new THREE.SphereGeometry(10, 32, 32);
         playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
         playerMesh.castShadow = true;
+        playerMesh.position.set(0, 20, 310);
+        playerBody.position.set(0, 20, 310);
         scene.add(playerMesh);
 
-        // Ground
-        var groundGeometry = new THREE.PlaneGeometry(1000, 1000, 1, 1);
+        // Ground (grass)
+        var groundGeometry = new THREE.PlaneGeometry(2000, 2000, 1, 1);
         groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
         groundMesh.castShadow = true;
-        groundMesh.useQuaternion = true;
         groundMesh.position.set(0, 0, 0);
         groundBody.position.set(0, 0, 0);
         groundMesh.receiveShadow = true;
         scene.add(groundMesh);
 
+        // Level ground
+        var levelGroundSize = new CANNON.Vec3(70, 5, 200); // w, h, length
+        var levelGroundShape = new CANNON.Box(levelGroundSize);
+        var levelGroundGeometry = new THREE.CubeGeometry(levelGroundSize.x * 2, levelGroundSize.y * 2, levelGroundSize.z * 2);
+        var levelGroundBody = new CANNON.Body({mass: 0});
+        levelGroundBody.addShape(levelGroundShape);
+        levelGroundBody.id = ID_LEVEL_GROUND;
+        var levelGroundMesh = new THREE.Mesh(levelGroundGeometry, stoneMaterial);
+        world.add(levelGroundBody);
+        scene.add(levelGroundMesh);
+        levelGroundBody.position.set(0, 0, levelGroundSize.z / 2 + 20);
+        levelGroundMesh.position.set(0, 0, levelGroundSize.z / 2 + 20);
+        levelGroundMesh.castShadow = true;
+        levelGroundMesh.receiveShadow = true;
+        obstacle1Bodies.push(levelGroundBody);
+        obstacle1Meshes.push(levelGroundMesh);
 
-        // Obstacle 1
-        var halfExtents = new CANNON.Vec3(10, 10, 10);
-        var boxShape = new CANNON.Box(halfExtents);
-        var boxGeometry = new THREE.BoxGeometry(halfExtents.x * 2, halfExtents.y * 2, halfExtents.z * 2);
+
+        // Obstacle 1 (row of boxes)
+        var box1Size = new CANNON.Vec3(10, 10, 10);
+        var o1BoxShape = new CANNON.Box(box1Size);
+        var o1BoxGeometry = new THREE.BoxGeometry(box1Size.x * 2, box1Size.y * 2, box1Size.z * 2);
         // create a row of boxes
-        for (var i = 0; i < 5; i++) {
-            var x = i * (halfExtents.x * 2 + 2);
-            var y = 15;
-            var z = -30;
-            var boxBody = new CANNON.Body({mass: 30});
-            boxBody.addShape(boxShape);
+        for (var row = 0; row < 3; row++) {
+            for (var i = 0; i < 6; i++) {
+                var x = -55 + i * (box1Size.x * 2 + 2);
+                var y = 5 + box1Size.y * 2 * row + box1Size.y * 2;
+                var z = 257;
+                var o1BoxBody = new CANNON.Body({mass: 75});
+                o1BoxBody.addShape(o1BoxShape);
+                o1BoxBody.id = ID_BOX;
+                var o1BoxMesh = new THREE.Mesh(o1BoxGeometry, boxMaterial);
+                world.add(o1BoxBody);
+                scene.add(o1BoxMesh);
+                o1BoxBody.position.set(x, y, z);
+                o1BoxMesh.position.set(x, y, z);
+                o1BoxMesh.castShadow = true;
+                o1BoxMesh.receiveShadow = true;
+                obstacle1Bodies.push(o1BoxBody);
+                obstacle1Meshes.push(o1BoxMesh);
+            }
+        }
+
+        // Obstacle 2 (swinging linked boxes)
+        var swingingBoxSizeValue = 10;
+        var swingingBoxSize = new CANNON.Vec3(swingingBoxSizeValue, swingingBoxSizeValue, swingingBoxSizeValue * 0.1);
+        var swingingBoxShape = new CANNON.Box(swingingBoxSize);
+        var swingingBoxMass = 0; // first box has to be 0, to not fall down
+        var boxSpacing = 1;
+        var boxCount = 5;
+        var swingingBoxLast;
+        var boxGeometry = new THREE.BoxGeometry(swingingBoxSize.x * 2, swingingBoxSize.y * 2, swingingBoxSize.z * 2);
+        for (var i = 0; i < boxCount; i++) {
+            if (i > 0) {
+                swingingBoxMass = SWINGING_OBSTACLE_MASS;
+            }
+            var boxbody = new CANNON.Body({mass: swingingBoxMass});
+            boxbody.addShape(swingingBoxShape);
             var boxMesh = new THREE.Mesh(boxGeometry, boxMaterial);
-            world.add(boxBody);
-            scene.add(boxMesh);
-            boxBody.position.set(x, y, z);
-            boxMesh.position.set(x, y, z);
+            boxbody.position.set(0, 5 + (boxCount - i) * (swingingBoxSizeValue * 2 + 2 * boxSpacing) + swingingBoxSizeValue * 2 + boxSpacing - 30, 283);
+            boxbody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
             boxMesh.castShadow = true;
             boxMesh.receiveShadow = true;
-            obstacle1Bodies.push(boxBody);
-            obstacle1Meshes.push(boxMesh);
+            world.add(boxbody);
+            scene.add(boxMesh);
+            swingingObstacleBodies.push(boxbody);
+            swingingObstacleMeshes.push(boxMesh);
+            if (i != 0) {
+                // Connect this body to the last one
+                var c1 = new CANNON.PointToPointConstraint(boxbody, new CANNON.Vec3(-swingingBoxSizeValue, swingingBoxSizeValue + boxSpacing, 0), swingingBoxLast, new CANNON.Vec3(-swingingBoxSizeValue, -swingingBoxSizeValue - boxSpacing, 0));
+                var c2 = new CANNON.PointToPointConstraint(boxbody, new CANNON.Vec3(swingingBoxSizeValue, swingingBoxSizeValue + boxSpacing, 0), swingingBoxLast, new CANNON.Vec3(swingingBoxSizeValue, -swingingBoxSizeValue - boxSpacing, 0));
+
+                world.addConstraint(c1);
+                world.addConstraint(c2);
+            }
+            if (i == boxCount - 1) {
+                boxbody.velocity.x = SWINGING_OBSTACLE_VELOCITY;
+            }
+
+            swingingBoxLast = boxbody;
         }
 
         /////////////////////////////////////////////////////
@@ -236,10 +316,40 @@
         groundMesh.position.copy(groundBody.position);
         groundMesh.quaternion.copy(groundBody.quaternion);
 
-        // Update box positions
+        // Update box obstacle positions
         for (var i = 0; i < obstacle1Bodies.length; i++) {
             obstacle1Meshes[i].position.copy(obstacle1Bodies[i].position);
             obstacle1Meshes[i].quaternion.copy(obstacle1Bodies[i].quaternion);
+        }
+
+        // Update swinging obstacle positions
+        var setVelocity = false;
+        var movingRight = false;
+        for (var j = swingingObstacleBodies.length - 1; j >= 0; j--) {
+            var obj = swingingObstacleBodies[j];
+            if (j == swingingObstacleBodies.length - 1) {
+                // check last box to see if we need to restore velocity
+                if (obj.x == 0) {
+                    movingRight = obj.velocity.x > 0;
+                    if (movingRight) {
+                        obj.velocity.x = SWINGING_OBSTACLE_VELOCITY;
+                    } else {
+                        // left
+                        obj.velocity.x = -SWINGING_OBSTACLE_VELOCITY;
+                    }
+                    setVelocity = true;
+                }
+            } else if (setVelocity) {
+                if (movingRight) {
+                    obj.velocity.x = SWINGING_OBSTACLE_VELOCITY;
+                } else {
+                    // left
+                    obj.velocity.x = -SWINGING_OBSTACLE_VELOCITY;
+                }
+            }
+
+            swingingObstacleMeshes[j].position.copy(swingingObstacleBodies[j].position);
+            swingingObstacleMeshes[j].quaternion.copy(swingingObstacleBodies[j].quaternion);
         }
 
         camera.lookAt(playerMesh.position);
@@ -249,6 +359,16 @@
     }
     function render() {
         renderer.render(scene, camera);
+    }
+
+    /////////////////////////////////////
+    /////////////////////////////////////
+    ////////// OTHER FUNCTIONS //////////
+    /////////////////////////////////////
+
+    function showGameOverMessage() {
+        alert("GAME OVER!\n\nDo you want to play again?");
+        location.reload();
     }
 </script>
 </body>
