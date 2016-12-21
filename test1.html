@@ -23,84 +23,104 @@
 <script src="scripts/keyboard.js"></script>
 
 <script>
-    var world, timeStep = 1 / 60, scene, renderer, camera,
-            icosahedronBody, sphereShape, groundShape,
-            ground, groundBody, groundShape;
     // CONSTANTS
-    var GRID_HELPER_SIZE = 40,
-            GRID_HELPER_STEP = 2,
-            MASS = 5;
+    var PLAYER_MASS = 50, ID_GROUND = "GROUND";
 
+    // main
+    var world, timeStep = 1 / 60, scene, renderer, camera;
+
+    // Ground
+    var groundMesh, groundBody, groundShape;
+
+    // Player (ball)
+    var playerMesh, playerBody, playerShape;
+
+    // Other objects
+    var obstacle1Bodies = [], obstacle1Meshes = [];
+
+    // logic
     var canJump;
 
-    initThree();
+    ////// GAME START /////
     initCannon();
+    initThree();
     animate();
 
+    /**
+     * Physics initialization of Cannon.js
+     */
     function initCannon() {
+        // init world
         world = new CANNON.World();
         world.broadphase = new CANNON.NaiveBroadphase();
-        sphereShape = new CANNON.Sphere(10);
-        groundShape = new CANNON.Plane();
-
-        var sphereBody = new CANNON.Body({
-           mass: 10,// kg
-           position: new CANNON.Vec3(0, 10, 10), // m
-           shape: new CANNON.Sphere(5)
-        });
-        world.addBody(sphereBody);
-
-        icosahedronBody = new CANNON.Body({
-            mass: MASS,
-        });
-        groundBody = new CANNON.Body({
-            mass: 0, // mass == 0 makes the body static
-        });
-
         world.solver.iterations = 10;
+        world.solver.tolerance = 0.1;
         world.gravity.set(0, -100, 0);
         world.defaultContactMaterial.contactEquationStiffness = 1e9;
         world.defaultContactMaterial.contactEquationRegularizationTime = 4;
 
-        groundBody.addShape(groundShape);
-        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-        groundBody.position.set(0, 0, 0);
-        groundBody.id = "GROUND";
-        world.addBody(groundBody);
+        //// PLAYER ////
+        playerShape = new CANNON.Sphere(10);
+        playerBody = new CANNON.Body({
+            mass: PLAYER_MASS
+        });
+        playerBody.addShape(playerShape);
+        playerBody.position.set(0, 20, 0);
+        playerBody.linearDamping = 0.5;
+        world.add(playerBody);
 
-        icosahedronBody.addShape(sphereShape);
-        icosahedronBody.position.set(0, 15, 0);
-        icosahedronBody.linearDamping = 0.5;
-        world.addBody(icosahedronBody);
-
-        icosahedronBody.addEventListener("collide", function (e) {
+        // collision detection for player
+        playerBody.addEventListener("collide", function (e) {
             // contact.bi and contact.bj are the colliding bodies, and contact.ni is the collision normal.
             // We do not yet know which one is which! Let's check.
             var contact = e.contact;
-            if(contact.bj.id == "GROUND"){
+            if (contact.bj.id == ID_GROUND) {
                 canJump = true;
             }
         });
+        ///////////////
 
-        var ballContact = new CANNON.ContactMaterial(groundBody, icosahedronBody, 0.0, 0.0);
 
+        //// GROUND ////
+        groundShape = new CANNON.Plane();
+        groundBody = new CANNON.Body({
+            mass: 0 // mass == 0 makes the body static
+        });
+        groundBody.addShape(groundShape);
+        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+        groundBody.position.set(0, 0, 0);
+        groundBody.id = ID_GROUND;
+        world.add(groundBody);
+        ///////////////
+
+        // Create a slippery material (friction coefficient = 0.0)
+        var physicsMaterial = new CANNON.Material("slipperyMaterial");
+        var physicsContactMaterial = new CANNON.ContactMaterial(physicsMaterial,
+                physicsMaterial,
+                0.0, // friction coefficient
+                0.3  // restitution
+        );
+        // We must add the contact materials to the world
+        world.addContactMaterial(physicsContactMaterial);
+        var ballContact = new CANNON.ContactMaterial(groundBody, playerBody, 0.0, 0.0);
         world.addContactMaterial(ballContact);
     }
 
+    /**
+     * Three.js initialization of the world, camera, renderer, scene and objects
+     */
     function initThree() {
-        // INITIALIZE CANVAS
+        //// INITIALIZE THREE.js /////
         scene = new THREE.Scene();
         renderer = new THREE.WebGLRenderer();
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         var light = new THREE.AmbientLight(0x404040),
-                directionalLight = new THREE.DirectionalLight(0xffffff),
-                gridHelper = new THREE.GridHelper(GRID_HELPER_SIZE, GRID_HELPER_STEP);
+                directionalLight = new THREE.DirectionalLight(0xffffff);
 
 
         scene.add(directionalLight);
         scene.add(light);
         scene.add(camera);
-        scene.add(gridHelper);
         scene.fog = new THREE.Fog(0x000000, 0, 500);
 
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -109,34 +129,65 @@
         camera.position.set(0, 25, 100); // camera position to x , y , z
         camera.lookAt(new THREE.Vector3());
         directionalLight.position.set(1, 0.75, 0.5).normalize();
+        ///////////////
+
+        ///// MATERIALS and TEXTURES ////
+        var playerTexture = THREE.ImageUtils.loadTexture('textures/marble.png');
+        var playerMaterial = new THREE.MeshBasicMaterial({map: playerTexture});
+
+        var groundTexture = THREE.ImageUtils.loadTexture('textures/ground_grass.jpg');
+        groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+        groundTexture.repeat.set(15, 15);
+        var groundMaterial = new THREE.MeshBasicMaterial({map: groundTexture});
+
+        var boxTexture = THREE.ImageUtils.loadTexture('textures/crate.png');
+        var boxMaterial = new THREE.MeshBasicMaterial({map: boxTexture});
+        //////////////////////////
+
+        /////////////// OBJECTS - MAIN PART /////////////////
+        /////////////////////////////////////////////////////
+
+        // Player
+        var playerGeometry = new THREE.SphereGeometry(10, 32, 32);
+        playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
+        playerMesh.castShadow = true;
+        scene.add(playerMesh);
+
+        // Ground
+        var groundGeometry = new THREE.PlaneGeometry(1000, 1000, 1, 1);
+        groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+        groundMesh.castShadow = true;
+        groundMesh.useQuaternion = true;
+        groundMesh.position.set(0, 0, 0);
+        groundBody.position.set(0, 0, 0);
+        groundMesh.receiveShadow = true;
+        scene.add(groundMesh);
 
 
-        // MATERIALS
-        var moonTexture = THREE.ImageUtils.loadTexture( 'textures/marble.png' );
-        var moonMaterial = new THREE.MeshBasicMaterial( { map: moonTexture } );
-        var icoGeometry = new THREE.SphereGeometry(10, 32, 32),
+        // Obstacle 1
+        var halfExtents = new CANNON.Vec3(10, 10, 10);
+        var boxShape = new CANNON.Box(halfExtents);
+        var boxGeometry = new THREE.BoxGeometry(halfExtents.x * 2, halfExtents.y * 2, halfExtents.z * 2);
+        // create a row of boxes
+        for (var i = 0; i < 5; i++) {
+            var x = i * (halfExtents.x * 2 + 2);
+            var y = 15;
+            var z = -30;
+            var boxBody = new CANNON.Body({mass: 30});
+            boxBody.addShape(boxShape);
+            var boxMesh = new THREE.Mesh(boxGeometry, boxMaterial);
+            world.add(boxBody);
+            scene.add(boxMesh);
+            boxBody.position.set(x, y, z);
+            boxMesh.position.set(x, y, z);
+            boxMesh.castShadow = true;
+            boxMesh.receiveShadow = true;
+            obstacle1Bodies.push(boxBody);
+            obstacle1Meshes.push(boxMesh);
+        }
 
-        icoMaterial = new THREE.MeshLambertMaterial({color: 0xdddddd});
-        icosahedron = new THREE.Mesh(icoGeometry, moonMaterial);
-//        icosahedron.add(camera);
-
-
-
-        var groundGeometry = new THREE.BoxGeometry(100, 100, 1),
-        groundMaterial = new THREE.MeshLambertMaterial({color: 0xcccccc});
-        ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.receiveShadow = true;
-
-        var ballGeometry = new THREE.BoxGeometry(100, 100, 1),
-        ballMaterial = new THREE.MeshLambertMaterial({color: 0xcccccc});
-        ball = new THREE.Mesh(ballGeometry, ballMaterial);
-        ball.receiveShadow = true;
-
-        // ADD OBJECTS TO SCENE
-
-        scene.add(ground);
-        scene.add(icosahedron);
-        scene.add(ball);
+        /////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////
     }
 
     function animate() {
@@ -152,24 +203,24 @@
         var moveDistance = canJump ? 10 : 5;
         var maxSpeed = canJump ? 60 : 30;
 
-        if(Key.isDown(Key.W) ){
-            if(Math.abs(icosahedronBody.velocity.z) > maxSpeed ) icosahedronBody.velocity.z +=moveDistance;
-            icosahedronBody.velocity.z +=-moveDistance;
+        if (Key.isDown(Key.W)) {
+            if (Math.abs(playerBody.velocity.z) > maxSpeed) playerBody.velocity.z += moveDistance;
+            playerBody.velocity.z += -moveDistance;
         }
-        if(Key.isDown(Key.S) ){
-            if(Math.abs(icosahedronBody.velocity.z) > maxSpeed ) icosahedronBody.velocity.z +=-moveDistance;
-            icosahedronBody.velocity.z +=moveDistance;
+        if (Key.isDown(Key.S)) {
+            if (Math.abs(playerBody.velocity.z) > maxSpeed) playerBody.velocity.z += -moveDistance;
+            playerBody.velocity.z += moveDistance;
         }
-        if(Key.isDown(Key.A) ){
-            if(Math.abs(icosahedronBody.velocity.x) > maxSpeed ) icosahedronBody.velocity.x +=moveDistance;
-            icosahedronBody.velocity.x +=-moveDistance;
+        if (Key.isDown(Key.A)) {
+            if (Math.abs(playerBody.velocity.x) > maxSpeed) playerBody.velocity.x += moveDistance;
+            playerBody.velocity.x += -moveDistance;
         }
-        if(Key.isDown(Key.D) ){
-            if(Math.abs(icosahedronBody.velocity.x) > maxSpeed ) icosahedronBody.velocity.x +=-moveDistance;
-            icosahedronBody.velocity.x +=moveDistance;
+        if (Key.isDown(Key.D)) {
+            if (Math.abs(playerBody.velocity.x) > maxSpeed) playerBody.velocity.x += -moveDistance;
+            playerBody.velocity.x += moveDistance;
         }
-        if(Key.isDown(Key.SPACE) && canJump === true){
-            icosahedronBody.velocity.y = 100 ;
+        if (Key.isDown(Key.SPACE) && canJump === true) {
+            playerBody.velocity.y = 100;
             canJump = false;
         }
     }
@@ -177,20 +228,24 @@
     function updatePhysics() {
         // Step the physics world
         world.step(timeStep);
+
         // Copy coordinates from Cannon.js to Three.js
-        icosahedronBody.velocity.x += 0.1;
+        playerMesh.position.copy(playerBody.position);
+        playerMesh.quaternion.copy(playerBody.quaternion);
 
-        icosahedron.position.copy(icosahedronBody.position);
-        icosahedron.quaternion.copy(icosahedronBody.quaternion);
+        groundMesh.position.copy(groundBody.position);
+        groundMesh.quaternion.copy(groundBody.quaternion);
 
-        ground.position.copy(groundBody.position);
-        ground.quaternion.copy(groundBody.quaternion);
+        // Update box positions
+        for (var i = 0; i < obstacle1Bodies.length; i++) {
+            obstacle1Meshes[i].position.copy(obstacle1Bodies[i].position);
+            obstacle1Meshes[i].quaternion.copy(obstacle1Bodies[i].quaternion);
+        }
 
-
-        camera.lookAt(icosahedron.position);
-        camera.position.x = icosahedron.position.x;
-        camera.position.y = icosahedron.position.y + 15;
-        camera.position.z = icosahedron.position.z + 50;
+        camera.lookAt(playerMesh.position);
+        camera.position.x = playerMesh.position.x;
+        camera.position.y = playerMesh.position.y + 15;
+        camera.position.z = playerMesh.position.z + 50;
     }
     function render() {
         renderer.render(scene, camera);
