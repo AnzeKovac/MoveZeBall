@@ -21,6 +21,7 @@
 <script src="libs/three.js"></script>
 <script src="libs/cannon.js"></script>
 <script src="scripts/keyboard.js"></script>
+<script src="scripts/objects/PressurePlate.js"></script>
 
 <script>
     // CONSTANTS
@@ -30,7 +31,8 @@
             ID_GROUND = "GROUND",
             ID_BOX = "BOX",
             ID_LEVEL_GROUND = "LEVEL_GROUND",
-            SWINGING_OBSTACLE_VELOCITY = 250,
+            ID_PRESSURE_PLATE = "PRESSURE_PLATE";
+    SWINGING_OBSTACLE_VELOCITY = 250,
             SWINGING_OBSTACLE_MASS = 1000;
 
     // main
@@ -45,9 +47,10 @@
     // Other objects
     var obstacle1Bodies = [], obstacle1Meshes = [];
     var swingingObstacleBodies = [], swingingObstacleMeshes = [];
+    var pressurePlates = [];
 
     // logic
-    var canJump;
+    var canJump, normalControls = true;
 
     ////// GAME START /////
     initCannon();
@@ -88,6 +91,25 @@
                     break;
                 case ID_LEVEL_GROUND:
                     canJump = true;
+                    for (var i = 0; i < pressurePlates.length; i++) {
+                        pressurePlates[i].deactivate();
+                    }
+                    break;
+                case ID_PRESSURE_PLATE:
+                    var index = contact.bj.plateIndex;
+                    pressurePlates[index].activate();
+                    if (pressurePlates[index].type == PLATE_TYPE_INVERT) {
+                        normalControls = false;
+                        setTimeout(function () {
+                            normalControls = true;
+                        }, 2000);
+                    } else {
+                        setTimeout(function () {
+                            playerBody.velocity.y = 100;
+                            playerBody.velocity.z = 150;
+                        }, 200);
+                    }
+
                     break;
             }
         });
@@ -127,10 +149,8 @@
         scene = new THREE.Scene();
         renderer = new THREE.WebGLRenderer();
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        var light = new THREE.AmbientLight(0x404040),
-                directionalLight = new THREE.DirectionalLight(0xffffff);
-
-
+        var light = new THREE.AmbientLight(0x111111);
+        var directionalLight = new THREE.DirectionalLight(0xffffff);
         scene.add(directionalLight);
         scene.add(light);
         scene.add(camera);
@@ -142,6 +162,22 @@
         camera.position.set(0, 25, 100); // camera position to x , y , z
         camera.lookAt(new THREE.Vector3());
         directionalLight.position.set(1, 0.75, 0.5).normalize();
+
+        // skybox
+        var imagePrefix = "images/dawnmountain-";
+        var directions = ["xpos", "xneg", "ypos", "yneg", "zpos", "zneg"];
+        var imageSuffix = ".png";
+        var skyGeometry = new THREE.CubeGeometry(500, 500, 500);
+
+        var materialArray = [];
+        for (var i = 0; i < 6; i++)
+            materialArray.push(new THREE.MeshBasicMaterial({
+                map: THREE.ImageUtils.loadTexture(imagePrefix + directions[i] + imageSuffix),
+                side: THREE.BackSide
+            }));
+        var skyMaterial = new THREE.MeshFaceMaterial(materialArray);
+        var skyBox = new THREE.Mesh(skyGeometry, skyMaterial);
+        scene.add(skyBox);
         ///////////////
 
         ///// MATERIALS and TEXTURES ////
@@ -157,11 +193,16 @@
         var boxMaterial = new THREE.MeshBasicMaterial({map: boxTexture});
 
         var stoneTexture = THREE.ImageUtils.loadTexture('textures/stone.jpg');
-//        stoneTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
         stoneTexture.repeat.set(20, 20);
         stoneTexture.wrapS = THREE.RepeatWrapping;
         stoneTexture.wrapT = THREE.RepeatWrapping;
         var stoneMaterial = new THREE.MeshBasicMaterial({map: stoneTexture});
+
+        var plateJumpingTexture = THREE.ImageUtils.loadTexture('textures/plate.jpg');
+        var plateJumpingMaterial = new THREE.MeshBasicMaterial({map: plateJumpingTexture});
+
+        var plateInvertTexture = THREE.ImageUtils.loadTexture('textures/plate_2.jpg');
+        var plateInvertMaterial = new THREE.MeshBasicMaterial({map: plateInvertTexture});
         //////////////////////////
 
         /////////////// OBJECTS - MAIN PART /////////////////
@@ -200,7 +241,6 @@
         levelGroundMesh.receiveShadow = true;
         obstacle1Bodies.push(levelGroundBody);
         obstacle1Meshes.push(levelGroundMesh);
-
 
         // Obstacle 1 (row of boxes)
         var box1Size = new CANNON.Vec3(10, 10, 10);
@@ -247,6 +287,7 @@
             boxbody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
             boxMesh.castShadow = true;
             boxMesh.receiveShadow = true;
+            boxMesh.angularDamping = 0.1;
             world.add(boxbody);
             scene.add(boxMesh);
             swingingObstacleBodies.push(boxbody);
@@ -264,6 +305,44 @@
             }
 
             swingingBoxLast = boxbody;
+        }
+
+        // Obstacle 3 - pressure plates
+        var box3Size = new CANNON.Vec3(10, 2, 10);
+        var o3BoxShape = new CANNON.Box(box3Size);
+        var o3BoxGeometry = new THREE.BoxGeometry(box3Size.x * 2, box3Size.y, box3Size.z * 2);
+        // create a row of boxes
+        var counter = 0;
+        // 0 = empty, 1 = plate jumping (red), 2 = plate invert (blue)
+        var platesPosArray = [
+            [1, 2, 0, 1, 1, 1], // back
+            [1, 0, 1, 2, 0, 1],
+            [1, 1, 0, 0, 1, 1],
+            [2, 1, 2, 1, 1, 1],
+            [0, 1, 1, 0, 1, 1],
+            [1, 2, 0, 1, 2, 1] // front
+        ];
+        for (var i = 0; i < platesPosArray.length; i++) {
+            for (var j = 0; j < platesPosArray[i].length; j++) {
+                if (platesPosArray[i][j] > 0) {
+                    var x = -55 + j * (box3Size.x * 2 + 2);
+                    var y = 5;
+                    var z = 50 + i * (box3Size.x * 2 + 5);
+                    var o3BoxBody = new CANNON.Body({mass: 0});
+                    o3BoxBody.addShape(o3BoxShape);
+                    o3BoxBody.id = ID_PRESSURE_PLATE;
+                    o3BoxBody.plateIndex = counter;
+                    var o3BoxMesh = new THREE.Mesh(o3BoxGeometry, platesPosArray[i][j] == 1 ? plateJumpingMaterial : plateInvertMaterial);
+                    world.add(o3BoxBody);
+                    scene.add(o3BoxMesh);
+                    o3BoxBody.position.set(x, y, z);
+                    o3BoxMesh.position.set(x, y, z);
+                    o3BoxMesh.castShadow = true;
+                    o3BoxMesh.receiveShadow = true;
+                    pressurePlates.push(new PressurePlate(o3BoxBody, o3BoxMesh, platesPosArray[i][j] == 1 ? PLATE_TYPE_JUMPING : PLATE_TYPE_INVERT));
+                    counter++;
+                }
+            }
         }
 
         /////////////////////////////////////////////////////
@@ -284,25 +363,57 @@
         var maxSpeed = canJump ? 60 : 30;
 
         if (Key.isDown(Key.W)) {
-            if (Math.abs(playerBody.velocity.z) > maxSpeed) playerBody.velocity.z += moveDistance;
-            playerBody.velocity.z += -moveDistance;
+            if (normalControls) {
+                goForward(moveDistance, maxSpeed);
+            } else {
+                goBackward(moveDistance, maxSpeed);
+            }
         }
         if (Key.isDown(Key.S)) {
-            if (Math.abs(playerBody.velocity.z) > maxSpeed) playerBody.velocity.z += -moveDistance;
-            playerBody.velocity.z += moveDistance;
+            if (normalControls) {
+                goBackward(moveDistance, maxSpeed);
+            } else {
+                goForward(moveDistance, maxSpeed);
+            }
         }
         if (Key.isDown(Key.A)) {
-            if (Math.abs(playerBody.velocity.x) > maxSpeed) playerBody.velocity.x += moveDistance;
-            playerBody.velocity.x += -moveDistance;
+            if (normalControls) {
+                goLeft(moveDistance, maxSpeed);
+            } else {
+                goRight(moveDistance, maxSpeed);
+            }
         }
         if (Key.isDown(Key.D)) {
-            if (Math.abs(playerBody.velocity.x) > maxSpeed) playerBody.velocity.x += -moveDistance;
-            playerBody.velocity.x += moveDistance;
+            if (normalControls) {
+                goRight(moveDistance, maxSpeed);
+            } else {
+                goLeft(moveDistance, maxSpeed);
+            }
         }
         if (Key.isDown(Key.SPACE) && canJump === true) {
             playerBody.velocity.y = 100;
             canJump = false;
         }
+    }
+
+    function goForward(moveDistance, maxSpeed) {
+        if (Math.abs(playerBody.velocity.z) > maxSpeed) playerBody.velocity.z += moveDistance;
+        playerBody.velocity.z += -moveDistance;
+    }
+
+    function goBackward(moveDistance, maxSpeed) {
+        if (Math.abs(playerBody.velocity.z) > maxSpeed) playerBody.velocity.z += -moveDistance;
+        playerBody.velocity.z += moveDistance;
+    }
+
+    function goLeft(moveDistance, maxSpeed) {
+        if (Math.abs(playerBody.velocity.x) > maxSpeed) playerBody.velocity.x += moveDistance;
+        playerBody.velocity.x += -moveDistance;
+    }
+
+    function goRight(moveDistance, maxSpeed) {
+        if (Math.abs(playerBody.velocity.x) > maxSpeed) playerBody.velocity.x += -moveDistance;
+        playerBody.velocity.x += moveDistance;
     }
 
     function updatePhysics() {
@@ -352,9 +463,15 @@
             swingingObstacleMeshes[j].quaternion.copy(swingingObstacleBodies[j].quaternion);
         }
 
+        // Update pressure_plates positions
+        for (var i = 0; i < pressurePlates.length; i++) {
+            pressurePlates[i].mesh.position.copy(pressurePlates[i].body.position);
+            pressurePlates[i].mesh.quaternion.copy(pressurePlates[i].body.quaternion);
+        }
+
         camera.lookAt(playerMesh.position);
         camera.position.x = playerMesh.position.x;
-        camera.position.y = playerMesh.position.y + 15;
+        camera.position.y = playerMesh.position.y + 20;
         camera.position.z = playerMesh.position.z + 50;
     }
     function render() {
