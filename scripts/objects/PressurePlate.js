@@ -13,7 +13,7 @@ var PressurePlate = function (body, mesh, type) {
     this.activate = function () {
         if (!this.activated) {
             this.activated = true;
-            mesh.scale.set(1, 0.25, 1);
+            mesh.scale.set(1,0.25, 1);
         }
     };
 
