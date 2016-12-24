@@ -15,9 +15,42 @@
             overflow: hidden;
             font-family: arial;
         }
+
+        #hud {
+            top: 50px;
+            left: 50px;
+            position: absolute;
+            z-index: 100;
+            color: white;
+            text-shadow: 2px 2px #000000;
+            font-size: 1.5em;
+        }
+
+        #instructions {
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #goal {
+            font-size: 1.2em;
+            text-align: center;
+        }
+
+        #startBtn {
+            width: 30%;
+            height: 50px;
+            background: green;
+            color: white;
+            margin: 0% auto;
+            border: 1px solid black;
+        }
     </style>
 </head>
-<body onload="initUI();">
+<body onload="initUI()">
 <script src="libs/three.js"></script>
 <script src="libs/cannon.js"></script>
 <script src="scripts/keyboard.js"></script>
@@ -53,12 +86,16 @@
     var wall = [];
 
     //UI
-    var score,scoreObject,startPosition;
+    var score, hudElement, startPosition, secondsPassed, scoreDiv, timeDiv;
 
     // logic
     var canJump, normalControls = true;
 
     ////// GAME START /////
+    // count used time
+    setInterval(function () {
+        secondsPassed++;
+    }, 1000);
     initCannon();
     initThree();
     animate();
@@ -67,9 +104,11 @@
     /**
      * UI initialization for the game
      */
-    function initUI(){
+    function initUI() {
         score = 0;
-        scoreObject = document.getElementById("score");
+        secondsPassed = 0;
+        scoreDiv = document.getElementById("score");
+        timeDiv = document.getElementById("time");
     }
 
     /**
@@ -125,9 +164,9 @@
                         }, 200);
                     }
                     break;
-                 case ID_PUNCH_BRICK:
+                case ID_PUNCH_BRICK:
                   showGameOverMessage();
-                  break;
+                    break;
             }
         });
         ///////////////
@@ -158,7 +197,7 @@
         world.addContactMaterial(ballContact);
 
         //trigger wall brick push
-        setInterval(pushRandomBrick,1000);
+        setInterval(pushRandomBrick, 1000);
     }
 
     /**
@@ -187,7 +226,7 @@
         var imagePrefix = "images/dawnmountain-";
         var directions = ["xpos", "xneg", "ypos", "yneg", "zpos", "zneg"];
         var imageSuffix = ".png";
-        var skyGeometry = new THREE.CubeGeometry(500, 500, 500);
+        var skyGeometry = new THREE.CubeGeometry(1000, 1000, 1000);
 
         var materialArray = [];
         for (var i = 0; i < 6; i++)
@@ -198,7 +237,7 @@
         var skyMaterial = new THREE.MeshFaceMaterial(materialArray);
         var skyBox = new THREE.Mesh(skyGeometry, skyMaterial);
         scene.add(skyBox);
-        
+
 
         ///// MATERIALS and TEXTURES ////
         var playerTexture = THREE.ImageUtils.loadTexture('textures/marble.png');
@@ -239,7 +278,7 @@
         playerMesh.castShadow = true;
         playerMesh.position.set(0, 20, 310);
         playerBody.position.set(0, 20, 310);
-        startPosition=310;
+        startPosition = 310;
         scene.add(playerMesh);
 
         // Ground (grass)
@@ -261,8 +300,8 @@
         var levelGroundMesh = new THREE.Mesh(levelGroundGeometry, stoneMaterial);
         world.add(levelGroundBody);
         scene.add(levelGroundMesh);
-        levelGroundBody.position.set(0, 0, levelGroundSize.z / 2 -80);
-        levelGroundMesh.position.set(0, 0, levelGroundSize.z / 2 -80);
+        levelGroundBody.position.set(0, 0, levelGroundSize.z / 2 - 80);
+        levelGroundMesh.position.set(0, 0, levelGroundSize.z / 2 - 80);
         levelGroundMesh.castShadow = true;
         levelGroundMesh.receiveShadow = true;
         obstacle1Bodies.push(levelGroundBody);
@@ -373,10 +412,10 @@
 
         // Obstacle 4 - The wall
         //barier
-        var barrier3Size = new CANNON.Vec3(55,40,1);
+        var barrier3Size = new CANNON.Vec3(55, 40, 1);
         var o3BarierShape = new CANNON.Box(barrier3Size);
         var o3BarierGeometry = new THREE.BoxGeometry(barrier3Size.x * 2, barrier3Size.y, barrier3Size.z * 2);
-        
+
         var x = -14.5; //20 10 -120
         var y = 10;
         var z = 10;
@@ -404,25 +443,24 @@
         ];
 
 
-
         for (var i = 0; i < 2; i++) {
             for (var j = 0; j < 6; j++) {
-                    var x = 40; //20 10 -120
-                    var y = 10 +i * (brick3Size.x*5);
-                    var z = -100 + j * (brick3Size.x*5+10);
-                    var o3BrickBody = new CANNON.Body({mass: 0});
-                    o3BrickBody.addShape(o3BrickShape);
-                    o3BrickBody.id = ID_PUNCH_BRICK;
-                    o3BrickBody.brickIndex = counter;
-                    var o3BrickMesh = new THREE.Mesh(o3BrickGeometry, bricksWallMaterial);
-                    world.add(o3BrickBody);
-                    scene.add(o3BrickMesh);
-                    o3BrickBody.position.set(x, y, z);
-                    o3BrickMesh.position.set(x, y, z);
-                    o3BrickMesh.castShadow = true;
-                    o3BrickMesh.receiveShadow = true;
-                    wall.push(new Brick(o3BrickBody, o3BrickMesh, bricksWallMaterial));
-                    counter++;
+                var x = 40; //20 10 -120
+                var y = 10 + i * (brick3Size.x * 5);
+                var z = -100 + j * (brick3Size.x * 5 + 10);
+                var o3BrickBody = new CANNON.Body({mass: 0});
+                o3BrickBody.addShape(o3BrickShape);
+                o3BrickBody.id = ID_PUNCH_BRICK;
+                o3BrickBody.brickIndex = counter;
+                var o3BrickMesh = new THREE.Mesh(o3BrickGeometry, bricksWallMaterial);
+                world.add(o3BrickBody);
+                scene.add(o3BrickMesh);
+                o3BrickBody.position.set(x, y, z);
+                o3BrickMesh.position.set(x, y, z);
+                o3BrickMesh.castShadow = true;
+                o3BrickMesh.receiveShadow = true;
+                wall.push(new Brick(o3BrickBody, o3BrickMesh, bricksWallMaterial));
+                counter++;
             }
         }
 
@@ -435,7 +473,7 @@
         handleKeyInput();
         updatePhysics();
         render();
-        updateScore();
+        updateHud();
     }
 
     function handleKeyInput() {
@@ -561,13 +599,11 @@
         camera.position.z = playerMesh.position.z + 50;
     }
 
-    function updateScore()
-    {
-        var diffFromStart = Math.floor(Math.abs(playerBody.position.z-startPosition));
+    function updateHud() {
+        var diffFromStart = Math.floor(startPosition - playerBody.position.z);
         score = diffFromStart > score ? diffFromStart : score;
-        console.debug(diffFromStart,scoreObject);
-        scoreObject.innerHTML=score;
-
+        scoreDiv.innerHTML = "Distance: " + score;
+        timeDiv.innerHTML = "Time: " + secondsPassed + "s";
     }
     function render() {
         renderer.render(scene, camera);
@@ -584,7 +620,25 @@
     }
 </script>
 <div class="container">
-    <div id="score"><div>
+    <div id="hud">
+        <div id="score">
+
+        </div>
+        <div id="time">
+
+        </div>
+    </div>
+
+    <div id="instructions" align="middle">
+        <span id="goal">Try to beat all the obstacles and get the ball to the finish line safely.
+            <br>
+            And whatever you do, don't touch the grass!
+        </span>
+        <h3>How to play?</h3>
+        <p>Use W, A, D, S to move, SPACE to jump.</p>
+
+        <button id="startBtn">PLAY</button>
+    </div>
 </div>
 </body>
 </html>
