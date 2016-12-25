@@ -89,12 +89,14 @@
     var score, hudElement, startPosition, secondsPassed, scoreDiv, timeDiv;
 
     // logic
-    var canJump, normalControls = true;
+    var canJump, normalControls = true, isGamePlayable, isGameReady;
 
     ////// GAME START /////
     // count used time
     setInterval(function () {
-        secondsPassed++;
+        if(isGamePlayable) {
+            secondsPassed++;
+        }
     }, 1000);
     initCannon();
     initThree();
@@ -165,7 +167,7 @@
                     }
                     break;
                 case ID_PUNCH_BRICK:
-                  showGameOverMessage();
+                    showGameOverMessage();
                     break;
             }
         });
@@ -470,7 +472,9 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        handleKeyInput();
+        if(isGamePlayable) {
+            handleKeyInput();
+        }
         updatePhysics();
         render();
         updateHud();
@@ -538,6 +542,7 @@
         // Step the physics world
         world.step(timeStep);
 
+
         // Copy coordinates from Cannon.js to Three.js
         playerMesh.position.copy(playerBody.position);
         playerMesh.quaternion.copy(playerBody.quaternion);
@@ -593,10 +598,12 @@
             wall[i].mesh.quaternion.copy(wall[i].body.quaternion);
         }
 
+
         camera.lookAt(playerMesh.position);
         camera.position.x = playerMesh.position.x;
         camera.position.y = playerMesh.position.y + 20;
         camera.position.z = playerMesh.position.z + 50;
+
     }
 
     function updateHud() {
@@ -618,6 +625,12 @@
         alert("GAME OVER!\n\nDo you want to play again?");
         location.reload();
     }
+
+    function startGame() {
+        isGamePlayable = true;
+        var instrOverlay = document.getElementById("instructions");
+        instrOverlay.style.display = 'none';
+    }
 </script>
 <div class="container">
     <div id="hud">
@@ -637,7 +650,7 @@
         <h3>How to play?</h3>
         <p>Use W, A, D, S to move, SPACE to jump.</p>
 
-        <button id="startBtn">PLAY</button>
+        <button id="startBtn" onclick="startGame();">PLAY</button>
     </div>
 </div>
 </body>
