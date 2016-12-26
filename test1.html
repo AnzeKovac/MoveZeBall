@@ -67,6 +67,7 @@
             ID_LEVEL_GROUND = "LEVEL_GROUND",
             ID_PRESSURE_PLATE = "PRESSURE_PLATE",
             ID_PUNCH_BRICK = "PUNCH BRICK",
+            ID_FINISH = "FINISH",
             SWINGING_OBSTACLE_VELOCITY = 250,
             SWINGING_OBSTACLE_MASS = 1000;
 
@@ -84,17 +85,18 @@
     var swingingObstacleBodies = [], swingingObstacleMeshes = [];
     var pressurePlates = [];
     var wall = [];
+    var otherBodies = [], otherMeshes = [];
 
     //UI
     var score, hudElement, startPosition, secondsPassed, scoreDiv, timeDiv;
 
     // logic
-    var canJump, normalControls = true, isGamePlayable, isGameReady;
+    var canJump, normalControls = true, isGamePlayable, isGameReady, isForwardLooking = true;
 
     ////// GAME START /////
     // count used time
     setInterval(function () {
-        if(isGamePlayable) {
+        if (isGamePlayable) {
             secondsPassed++;
         }
     }, 1000);
@@ -169,6 +171,9 @@
                 case ID_PUNCH_BRICK:
                     showGameOverMessage();
                     break;
+                case ID_FINISH:
+                    // TODO Show game finished message with score
+                    break
             }
         });
         ///////////////
@@ -228,7 +233,7 @@
         var imagePrefix = "images/dawnmountain-";
         var directions = ["xpos", "xneg", "ypos", "yneg", "zpos", "zneg"];
         var imageSuffix = ".png";
-        var skyGeometry = new THREE.CubeGeometry(1000, 1000, 1000);
+        var skyGeometry = new THREE.CubeGeometry(2000, 2000, 2000);
 
         var materialArray = [];
         for (var i = 0; i < 6; i++)
@@ -269,6 +274,12 @@
         //-repeatWrapping
         var brickWallTexture = THREE.ImageUtils.loadTexture('textures/brick.jpg');
         var bricksWallMaterial = new THREE.MeshPhongMaterial({map: brickWallTexture});
+
+        var finishLineTexture = THREE.ImageUtils.loadTexture('textures/finish.jpg');
+        finishLineTexture.repeat.set(5, 5);
+        finishLineTexture.wrapS = THREE.RepeatWrapping;
+        finishLineTexture.wrapT = THREE.RepeatWrapping;
+        var finishLineMaterial = new THREE.MeshBasicMaterial({map: finishLineTexture});
         //////////////////////////
 
         /////////////// OBJECTS - MAIN PART /////////////////
@@ -466,13 +477,103 @@
             }
         }
 
+
+        // Obstacle 5 - Climbing
+
+        var levelGroundSize = new CANNON.Vec3(70, 5, 100); // w, h, length
+        var levelGroundShape = new CANNON.Box(levelGroundSize);
+        var levelGroundGeometry = new THREE.CubeGeometry(levelGroundSize.x * 2, levelGroundSize.y * 2, levelGroundSize.z * 2);
+        var levelGroundBody = new CANNON.Body({mass: 0});
+        levelGroundBody.addShape(levelGroundShape);
+        levelGroundBody.id = ID_LEVEL_GROUND;
+        var levelGroundMesh = new THREE.Mesh(levelGroundGeometry, stoneMaterial);
+        world.add(levelGroundBody);
+        scene.add(levelGroundMesh);
+        levelGroundBody.position.set(0, 10, -200);
+        levelGroundMesh.position.set(0, 10, -200);
+        levelGroundMesh.rotation.x = 45 * Math.PI / 180;
+        var rot = new CANNON.Vec3(1, 0, 0);
+        levelGroundBody.quaternion.setFromAxisAngle(rot, (45 * Math.PI / 180));
+        levelGroundMesh.castShadow = true;
+        levelGroundMesh.receiveShadow = true;
+        obstacle1Bodies.push(levelGroundBody);
+        obstacle1Meshes.push(levelGroundMesh);
+
+        var positions = [
+            [0, 80, -300],
+            [30, 90, -330],
+            [0, 70, -400],
+            [-30, 40, -410],
+            [-60, 20, -410],
+            [-80, 40, -410],
+            [-70, 60, -450],
+            [-40, 80, -500],
+            [0, 100, -520],
+            [40, 120, -540],
+            [80, 140, -560],
+            [120, 160, -580],
+            [120, 180, -620],
+            [120, 200, -660],
+            [120, 220, -700],
+            [120, 240, -740]
+        ];
+
+        for (var i = 0; i < positions.length; i++) {
+            var levelGroundSize = new CANNON.Vec3(5, 5, 10); // w, h, length
+            var levelGroundShape = new CANNON.Box(levelGroundSize);
+            var levelGroundGeometry = new THREE.CubeGeometry(levelGroundSize.x * 2, levelGroundSize.y * 2, levelGroundSize.z * 2);
+            var levelGroundBody = new CANNON.Body({mass: 0});
+            levelGroundBody.addShape(levelGroundShape);
+            levelGroundBody.id = ID_LEVEL_GROUND;
+            var levelGroundMesh = new THREE.Mesh(levelGroundGeometry, boxMaterial);
+            world.add(levelGroundBody);
+            scene.add(levelGroundMesh);
+            levelGroundBody.position.set(positions[i][0], positions[i][1], positions[i][2]);
+            levelGroundMesh.position.set(positions[i][0], positions[i][1], positions[i][2]);
+            levelGroundMesh.castShadow = true;
+            levelGroundMesh.receiveShadow = true;
+            obstacle1Bodies.push(levelGroundBody);
+            obstacle1Meshes.push(levelGroundMesh);
+        }
+
+        var levelGroundSize = new CANNON.Vec3(100, 2, 20); // w, h, length
+        var levelGroundShape = new CANNON.Box(levelGroundSize);
+        var levelGroundGeometry = new THREE.CubeGeometry(levelGroundSize.x * 2, levelGroundSize.y * 2, levelGroundSize.z * 2);
+        var levelGroundBody = new CANNON.Body({mass: 0});
+        levelGroundBody.addShape(levelGroundShape);
+        levelGroundBody.id = ID_LEVEL_GROUND;
+        var levelGroundMesh = new THREE.Mesh(levelGroundGeometry, stoneMaterial);
+        world.add(levelGroundBody);
+        scene.add(levelGroundMesh);
+        levelGroundBody.position.set(200, 250, -810);
+        levelGroundMesh.position.set(200, 250, -810);
+        levelGroundMesh.castShadow = true;
+        levelGroundMesh.receiveShadow = true;
+        obstacle1Bodies.push(levelGroundBody);
+        obstacle1Meshes.push(levelGroundMesh);
+
+        // Finish line
+        var finishSize = new CANNON.Vec3(40, 2, 50); // w, h, length
+        var finishShape = new CANNON.Box(finishSize);
+        var finishGeometry = new THREE.CubeGeometry(finishSize.x * 2, finishSize.y * 2, finishSize.z * 2);
+        var finishBody = new CANNON.Body({mass: 0});
+        finishBody.addShape(finishShape);
+        finishBody.id = ID_FINISH;
+        var finishMesh = new THREE.Mesh(finishGeometry, finishLineMaterial);
+        world.add(finishBody);
+        scene.add(finishMesh);
+        finishBody.position.set(370, 250, -840);
+        finishMesh.position.set(370, 250, -840);
+        finishMesh.castShadow = true;
+        finishMesh.receiveShadow = true;
+
         /////////////////////////////////////////////////////
         /////////////////////////////////////////////////////
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        if(isGamePlayable) {
+        if (isGamePlayable) {
             handleKeyInput();
         }
         updatePhysics();
@@ -484,32 +585,54 @@
         var moveDistance = canJump ? 10 : 5;
         var maxSpeed = canJump ? 60 : 30;
 
+
         if (Key.isDown(Key.W)) {
-            if (normalControls) {
-                goForward(moveDistance, maxSpeed);
+            // controls based on camera
+            if (isForwardLooking) {
+                if (normalControls) {
+                    goForward(moveDistance, maxSpeed);
+                } else {
+                    goBackward(moveDistance, maxSpeed);
+                }
             } else {
-                goBackward(moveDistance, maxSpeed);
+                // forward
+                goRight(moveDistance, maxSpeed);
             }
         }
         if (Key.isDown(Key.S)) {
-            if (normalControls) {
-                goBackward(moveDistance, maxSpeed);
+            if (isForwardLooking) {
+                if (normalControls) {
+                    goBackward(moveDistance, maxSpeed);
+                } else {
+                    goForward(moveDistance, maxSpeed);
+                }
             } else {
-                goForward(moveDistance, maxSpeed);
+                // back
+                goLeft(moveDistance, maxSpeed);
             }
         }
         if (Key.isDown(Key.A)) {
-            if (normalControls) {
-                goLeft(moveDistance, maxSpeed);
+            if (isForwardLooking) {
+                if (normalControls) {
+                    goLeft(moveDistance, maxSpeed);
+                } else {
+                    goRight(moveDistance, maxSpeed);
+                }
             } else {
-                goRight(moveDistance, maxSpeed);
+                // left
+                goForward(moveDistance, maxSpeed);
             }
         }
         if (Key.isDown(Key.D)) {
-            if (normalControls) {
-                goRight(moveDistance, maxSpeed);
+            if (isForwardLooking) {
+                if (normalControls) {
+                    goRight(moveDistance, maxSpeed);
+                } else {
+                    goLeft(moveDistance, maxSpeed);
+                }
             } else {
-                goLeft(moveDistance, maxSpeed);
+                // right
+                goBackward(moveDistance, maxSpeed);
             }
         }
         if (Key.isDown(Key.SPACE) && canJump === true) {
@@ -598,11 +721,27 @@
             wall[i].mesh.quaternion.copy(wall[i].body.quaternion);
         }
 
+        // Update other bodies
+        for (var m = 0; m < otherBodies.length; m++) {
+            otherMeshes[m].mesh.position.copy(otherBodies[m].body.position);
+            otherMeshes[m].mesh.quaternion.copy(otherBodies[m].body.quaternion);
+        }
 
-        camera.lookAt(playerMesh.position);
-        camera.position.x = playerMesh.position.x;
-        camera.position.y = playerMesh.position.y + 20;
-        camera.position.z = playerMesh.position.z + 50;
+        // handle player camera
+        if (playerMesh.position.y > 240 && playerMesh.position.z < -790) {
+            camera.rotation.y = -Math.PI / 2;
+            camera.position.x = playerMesh.position.x - 50;
+            camera.position.y = playerMesh.position.y + 20;
+            camera.position.z = playerMesh.position.z
+            camera.lookAt(playerMesh.position);
+            isForwardLooking = false;
+        } else {
+            camera.lookAt(playerMesh.position);
+            camera.position.x = playerMesh.position.x;
+            camera.position.y = playerMesh.position.y + 20;
+            camera.position.z = playerMesh.position.z + 50;
+            isForwardLooking = true;
+        }
 
     }
 
