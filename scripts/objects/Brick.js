@@ -12,7 +12,6 @@ var Brick = function (body, mesh, type) {
     this.move = false;
 
     this.moveForward = function () {
-        console.debug(body);
         if(!this.move){
             this.move=true;
             body.position.set(body.position.x+8,body.position.y,body.position.z);
@@ -29,13 +28,13 @@ var Brick = function (body, mesh, type) {
     };
 };
 
-function pushRandomBrick()
+function pushBrick()
 {
-    var brickIndex = Math.floor(Math.random() * (12 -0) + 0);
+
+    wall.push(wall.shift());
     for (var i = 0; i < wall.length; i++) {
-        if(i==brickIndex)
-            wall[i].moveForward();
-        else
-            wall[i].moveBack();
+        if(i==wall.length-1) wall[i].moveForward()
+        else wall[i].moveBack();
     }
+        
 }

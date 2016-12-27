@@ -25,8 +25,7 @@
             text-shadow: 2px 2px #000000;
             font-size: 1.5em;
         }
-
-        #instructions {
+        .popup {
             padding: 20px;
             background: rgba(255, 255, 255, 0.9);
             position: fixed;
@@ -35,18 +34,23 @@
             transform: translate(-50%, -50%);
         }
 
-        #goal {
+        .heading {
             font-size: 1.2em;
             text-align: center;
         }
 
-        #startBtn {
+        .btn {
             width: 30%;
             height: 50px;
             background: green;
             color: white;
             margin: 0% auto;
             border: 1px solid black;
+        }
+
+        #high-scores-list{
+            text-align:left;
+            margin-left:35%;
         }
     </style>
 </head>
@@ -56,6 +60,7 @@
 <script src="scripts/keyboard.js"></script>
 <script src="scripts/objects/PressurePlate.js"></script>
 <script src="scripts/objects/Brick.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
 
 <script>
     // CONSTANTS
@@ -88,7 +93,7 @@
     var otherBodies = [], otherMeshes = [];
 
     //UI
-    var score, hudElement, startPosition, secondsPassed, scoreDiv, timeDiv;
+    var score, hudElement, startPosition, secondsPassed, scoreDiv, timeDiv, success, finishPopup, highScores, finishOn;
 
     // logic
     var canJump, normalControls = true, isGamePlayable, isGameReady, isForwardLooking = true;
@@ -109,10 +114,18 @@
      * UI initialization for the game
      */
     function initUI() {
+        finisOn = false;
         score = 0;
         secondsPassed = 0;
         scoreDiv = document.getElementById("score");
         timeDiv = document.getElementById("time");
+        success = document.getElementById("success");
+
+        finishPopup = $("#finish");
+        highScores = $("#high-scores");
+        finishPopup.hide();
+        highScores.hide();
+
     }
 
     /**
@@ -145,7 +158,7 @@
             var contact = e.contact;
             switch (contact.bj.id) {
                 case ID_GROUND:
-                    showGameOverMessage();
+                    startFinishSequence(true);
                     break;
                 case ID_LEVEL_GROUND:
                     canJump = true;
@@ -169,11 +182,11 @@
                     }
                     break;
                 case ID_PUNCH_BRICK:
-                    showGameOverMessage();
+                    startFinishSequence(true);
                     break;
                 case ID_FINISH:
-                    // TODO Show game finished message with score
-                    break
+                    startFinishSequence(false);
+                    break;
             }
         });
         ///////////////
@@ -204,7 +217,7 @@
         world.addContactMaterial(ballContact);
 
         //trigger wall brick push
-        setInterval(pushRandomBrick, 1000);
+        setInterval(pushBrick, 300);
     }
 
     /**
@@ -291,6 +304,7 @@
         playerMesh.castShadow = true;
         playerMesh.position.set(0, 20, 310);
         playerBody.position.set(0, 20, 310);
+
         startPosition = 310;
         scene.add(playerMesh);
 
@@ -750,6 +764,7 @@
         score = diffFromStart > score ? diffFromStart : score;
         scoreDiv.innerHTML = "Distance: " + score;
         timeDiv.innerHTML = "Time: " + secondsPassed + "s";
+        success.innerHTML = "Success ration: " + Math.round((score/secondsPassed)*100)/100;
     }
     function render() {
         renderer.render(scene, camera);
@@ -757,7 +772,7 @@
 
     /////////////////////////////////////
     /////////////////////////////////////
-    ////////// OTHER FUNCTIONS //////////
+    ////////// HELPERS //////////////////
     /////////////////////////////////////
 
     function showGameOverMessage() {
@@ -770,6 +785,64 @@
         var instrOverlay = document.getElementById("instructions");
         instrOverlay.style.display = 'none';
     }
+
+    function startFinishSequence(gameOver)
+    {   
+        //Stop the game - ball is still rolling
+        isGamePlayable = false;
+        playerBody.velocity.x = -10;
+        playerBody.velocity.y = -10;
+        playerBody.velocity.z = -100;
+
+        //Communication prompts
+        
+        var successRatio = Math.round((score/secondsPassed)*100)/100;
+        var finishMessage;
+        
+        if(!finishOn)
+        {
+            finishOn = true;
+            if(gameOver) finishMessage = "<h3>Game over!</h3> </h4>Only the best can make it to the end.  Your succes ratio is "+successRatio+"</h4><br/>";
+            else {
+                $('#restartBtn').hide();
+                finishMessage = "You have reached finish line in "+secondsPassed+" seconds.<br/></h4>Your succes ratio is "+successRatio+".</h4><br/>";
+            }
+            $("#achivement").html(finishMessage);
+            
+            finishPopup.show();
+        }
+    }
+
+    function saveHighScore()
+    {
+        var successRatio = Math.round((score/secondsPassed)*100)/100;
+        var personName = prompt("Please enter your name", "Ball Mover");
+        finishPopup.hide();
+        highScores.show();
+        if(personName){
+          if (localStorage.highScore) {
+              var currentHighScores = JSON.parse(localStorage.highScore);
+              console.debug(currentHighScores);
+              currentHighScores.push({name:personName,score:successRatio});
+              localStorage.highScore = JSON.stringify(currentHighScores);
+          } else {
+            localStorage.highScore = JSON.stringify([{name:personName,score:successRatio}]);
+          }
+       }
+
+       var listItems='';
+       var highScoreArray = JSON.parse(localStorage.highScore);
+       highScoreArray.sort(function(obj1, obj2) {
+        return obj1.score > obj2.score;
+       });
+       for(var i=0;i<highScoreArray.length;i++)
+       {
+           listItems+='<li>'+highScoreArray[i].name+' - '+highScoreArray[i].score+'</li>'
+       }
+       console.debug(listItems);
+       $("#high-scores-list").html(listItems);
+
+    }
 </script>
 <div class="container">
     <div id="hud">
@@ -779,17 +852,35 @@
         <div id="time">
 
         </div>
+        <div id="success">
+
+        </div>
     </div>
 
-    <div id="instructions" align="middle">
-        <span id="goal">Try to beat all the obstacles and get the ball to the finish line safely.
+    <div id="instructions" align="middle" class="popup">
+        <span id="goal" class="heading">Try to beat all the obstacles and get the ball to the finish line safely.
             <br>
             And whatever you do, don't touch the grass!
         </span>
         <h3>How to play?</h3>
         <p>Use W, A, D, S to move, SPACE to jump.</p>
 
-        <button id="startBtn" onclick="startGame();">PLAY</button>
+        <button id="startBtn" onclick="startGame();" class="btn">PLAY</button>
+    </div>
+
+    <div id="finish" align="middle" class="popup" style="display:none">
+        <span id="achivement" class="heading">
+        </span></br>
+        <button id="saveBtn" onclick="saveHighScore();return false;" class="btn">Save to highscores</button><button id="restartBtn" onclick="location.reload();" class="btn">Restart</button>
+    </div>
+
+    <div id="high-scores" align="middle" class="popup" style="display:none">
+            <h3>High scores</h3>
+            <span id="achivement" class="heading">Here is the local list of all the adventurers who were brave enough to try this game.</span>
+            <ul id="high-scores-list">
+            
+            </ul>
+        <button id="restartBtn" onclick="location.reload();" class="btn">Restart</button>
     </div>
 </div>
 </body>
