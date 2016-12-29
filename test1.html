@@ -25,6 +25,7 @@
             text-shadow: 2px 2px #000000;
             font-size: 1.5em;
         }
+
         .popup {
             padding: 20px;
             background: rgba(255, 255, 255, 0.9);
@@ -48,9 +49,9 @@
             border: 1px solid black;
         }
 
-        #high-scores-list{
-            text-align:left;
-            margin-left:35%;
+        #high-scores-list {
+            text-align: left;
+            margin-left: 35%;
         }
     </style>
 </head>
@@ -217,7 +218,7 @@
         world.addContactMaterial(ballContact);
 
         //trigger wall brick push
-        setInterval(pushBrick, 300);
+        setInterval(pushBrick, 1000);
     }
 
     /**
@@ -760,11 +761,13 @@
     }
 
     function updateHud() {
-        var diffFromStart = Math.floor(startPosition - playerBody.position.z);
-        score = diffFromStart > score ? diffFromStart : score;
-        scoreDiv.innerHTML = "Distance: " + score;
+        if(isGamePlayable) {
+            var diffFromStart = Math.floor(startPosition - playerBody.position.z);
+            score = diffFromStart > score ? diffFromStart : score;
+        }
+        scoreDiv.innerHTML = "Distance: " + score + "m";
         timeDiv.innerHTML = "Time: " + secondsPassed + "s";
-        success.innerHTML = "Success ration: " + Math.round((score/secondsPassed)*100)/100;
+//        success.innerHTML = "Success ration: " + Math.round((score/secondsPassed)*100)/100;
     }
     function render() {
         renderer.render(scene, camera);
@@ -786,61 +789,57 @@
         instrOverlay.style.display = 'none';
     }
 
-    function startFinishSequence(gameOver)
-    {   
+    function startFinishSequence(gameOver) {
         //Stop the game - ball is still rolling
         isGamePlayable = false;
-        playerBody.velocity.x = -10;
-        playerBody.velocity.y = -10;
-        playerBody.velocity.z = -100;
+        playerBody.velocity.x = 0;
+        playerBody.velocity.y = 0;
+        playerBody.velocity.z = 0;
 
         //Communication prompts
-        
-        var successRatio = Math.round((score/secondsPassed)*100)/100;
+
+        var successRatio = Math.round((score / secondsPassed) * 100) / 100;
         var finishMessage;
-        
-        if(!finishOn)
-        {
+
+        if (!finishOn) {
             finishOn = true;
-            if(gameOver) finishMessage = "<h3>Game over!</h3> </h4>Only the best can make it to the end.  Your succes ratio is "+successRatio+"</h4><br/>";
+            if (gameOver) finishMessage = "<h3>Game over!</h3> </h4>Only the best can make it to the end.  Your success ratio is " + successRatio + "</h4><br/>";
             else {
                 $('#restartBtn').hide();
-                finishMessage = "You have reached finish line in "+secondsPassed+" seconds.<br/></h4>Your succes ratio is "+successRatio+".</h4><br/>";
+                finishMessage = "You have reached finish line in " + secondsPassed + " seconds.<br/></h4>Your success ratio is " + successRatio + ".</h4><br/>";
             }
             $("#achivement").html(finishMessage);
-            
+
             finishPopup.show();
         }
     }
 
-    function saveHighScore()
-    {
-        var successRatio = Math.round((score/secondsPassed)*100)/100;
+    function saveHighScore() {
+        var successRatio = Math.round((score / secondsPassed) * 100) / 100;
         var personName = prompt("Please enter your name", "Ball Mover");
         finishPopup.hide();
         highScores.show();
-        if(personName){
-          if (localStorage.highScore) {
-              var currentHighScores = JSON.parse(localStorage.highScore);
-              console.debug(currentHighScores);
-              currentHighScores.push({name:personName,score:successRatio});
-              localStorage.highScore = JSON.stringify(currentHighScores);
-          } else {
-            localStorage.highScore = JSON.stringify([{name:personName,score:successRatio}]);
-          }
-       }
+        if (personName) {
+            if (localStorage.highScore) {
+                var currentHighScores = JSON.parse(localStorage.highScore);
+                console.debug(currentHighScores);
+                currentHighScores.push({name: personName, score: successRatio});
+                localStorage.highScore = JSON.stringify(currentHighScores);
+            } else {
+                localStorage.highScore = JSON.stringify([{name: personName, score: successRatio}]);
+            }
+        }
 
-       var listItems='';
-       var highScoreArray = JSON.parse(localStorage.highScore);
-       highScoreArray.sort(function(obj1, obj2) {
-        return obj1.score > obj2.score;
-       });
-       for(var i=0;i<highScoreArray.length;i++)
-       {
-           listItems+='<li>'+highScoreArray[i].name+' - '+highScoreArray[i].score+'</li>'
-       }
-       console.debug(listItems);
-       $("#high-scores-list").html(listItems);
+        var listItems = '';
+        var highScoreArray = JSON.parse(localStorage.highScore);
+        highScoreArray.sort(function (obj1, obj2) {
+            return obj1.score > obj2.score;
+        });
+        for (var i = 0; i < highScoreArray.length; i++) {
+            listItems += '<li>' + highScoreArray[i].name + ' - ' + highScoreArray[i].score + '</li>'
+        }
+        console.debug(listItems);
+        $("#high-scores-list").html(listItems);
 
     }
 </script>
@@ -852,9 +851,9 @@
         <div id="time">
 
         </div>
-        <div id="success">
+        <!--<div id="success">-->
 
-        </div>
+        <!--</div>-->
     </div>
 
     <div id="instructions" align="middle" class="popup">
@@ -871,15 +870,16 @@
     <div id="finish" align="middle" class="popup" style="display:none">
         <span id="achivement" class="heading">
         </span></br>
-        <button id="saveBtn" onclick="saveHighScore();return false;" class="btn">Save to highscores</button><button id="restartBtn" onclick="location.reload();" class="btn">Restart</button>
+        <button id="saveBtn" onclick="saveHighScore();return false;" class="btn">Save to highscores</button>
+        <button id="restartBtn" onclick="location.reload();" class="btn">Restart</button>
     </div>
 
     <div id="high-scores" align="middle" class="popup" style="display:none">
-            <h3>High scores</h3>
-            <span id="achivement" class="heading">Here is the local list of all the adventurers who were brave enough to try this game.</span>
-            <ul id="high-scores-list">
-            
-            </ul>
+        <h3>High scores</h3>
+        <span id="achivement" class="heading">Here is the local list of all the adventurers who were brave enough to try this game.</span>
+        <ul id="high-scores-list">
+
+        </ul>
         <button id="restartBtn" onclick="location.reload();" class="btn">Restart</button>
     </div>
 </div>
